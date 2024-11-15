@@ -145,9 +145,13 @@ class test extends uvm_test;
   endtask
   task drive_addr_phase(trans t);
     bit [31:0] wdata;
+    bit transfer_done;
     for(int i=0; i<t.num_cycles; i+=1) begin
-      @my_intf.cb;
-      if(my_intf.cb.HREADY==1 || i==0) begin
+         @my_intf.cb;
+         transfer_done = 1;
+         if((my_intf.HTRANS==NONSEQ || my_intf.HTRANS==SEQ) && my_intf.cb.HREADY == 0) begin
+           transfer_done = 0;
+         end
          my_intf.cb.HADDR <= get_addr(t.HADDR,t.HSIZE,t.HBURST,i);
          my_intf.cb.HWRITE <= t.HWRITE;
          my_intf.cb.HSIZE <= t.HSIZE;
@@ -158,14 +162,16 @@ class test extends uvm_test;
            my_intf.cb.HTRANS <= SEQ;        
          end
          wdata = t.HWDATA[i];
-         fork begin
-           drive_data_phase(t.HWRITE,wdata);
+
+         if(transfer_done) begin
+           fork begin
+             drive_data_phase(t.HWRITE,wdata);
+           end
+           join_none
          end
-         join_none
-      end
-      else begin
-        i-=1;
-      end
+         else begin
+           i-=1;
+         end
     end
   endtask
   function bit [31:0] get_addr(bit [31:0] addr, bit [1:0] size, burst_e burst, int count);
